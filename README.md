@@ -1,6 +1,7 @@
 # The elin project
 
-The elin project focuses on a local and free coding models. 
+The elin project focuses on a local and free assistant for coding, talking and help with Linux. 
+
 It has multiple options such as:
 
 - Standard(runs on most
