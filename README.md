@@ -6,7 +6,8 @@ It has multiple options such as:
 - Standard(runs on most
 modern hardware)
 
-- Cracked(Same) size as standard but abliterated
+- Cracked(Same size as standard but abliterated)
+
 - Lite(Smaller than standard,
 focused for slower hardware or faster responses on modern Hardware)
 
