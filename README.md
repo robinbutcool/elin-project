@@ -1,3 +1,4 @@
+![Screenshot_2026-04-13-00-37-31-82_84c9ef400ab248a2e4a3b31139e21163](https://github.com/user-attachments/assets/d4e102ea-6f58-42b0-bc39-29e1e78b6b59)
 # The elin project
 
 The elin project provides a local and free assistant for coding, talking and help with Linux. 
