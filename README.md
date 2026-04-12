@@ -7,10 +7,12 @@ It has multiple options such as:
 - Standard(runs on most
 modern hardware)
 
-- Cracked(Same size as standard but abliterated)
+- Uncensored(same size as standard but abliterated)
 
-- Lite(Smaller than standard,
+- Lite(smaller than standard,
 focused for slower hardware or faster responses on modern hardware)
+
+Look below for further info.
 
 # THANK YOU!
 First of all, lets thank the ones who brought me to this:
@@ -28,3 +30,9 @@ You need following things:
 ```bash
 ..
 ```
+
+# HARDWARE NEEDED
+
+For the standard and uncensored model, any modern gpu with 8GB vRAM is enough. 6GB vRAM GPU's will need offloading, which also makes it slower.
+
+For the lite model, a GPU with ~4GB vRAM is good, 2GB vRAM will also need a bit of offloading and will be slower.
