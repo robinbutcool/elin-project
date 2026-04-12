@@ -9,7 +9,7 @@ modern hardware)
 - Cracked(Same size as standard but abliterated)
 
 - Lite(Smaller than standard,
-focused for slower hardware or faster responses on modern Hardware)
+focused for slower hardware or faster responses on modern hardware)
 
 # THANK YOU!
 First of all, lets thank the ones who brought me to this:
