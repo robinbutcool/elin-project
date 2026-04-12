@@ -1,4 +1,4 @@
-<img width="600" height="420" alt="a0134f08-4bc4-4d0f-85ed-35b54d68d727_removalai_preview" src="https://github.com/user-attachments/assets/bdeacc60-f7de-4433-a1cb-f93eb727866c" />
+![Screenshot_2026-04-13-00-37-31-82_84c9ef400ab248a2e4a3b31139e21163](https://github.com/user-attachments/assets/19bb500c-4081-432b-bfa7-8e6dc9a0977f)
 
 # The elin project
 
