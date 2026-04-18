@@ -34,6 +34,12 @@ docker docker-compose python python-annotated-types python-cffi python-datasets 
 ```
 Install them with your package manager and then just run the file you want to.
 
+
+Clone this repo and the needed files:
+```bash
+git clone https://github.com/quinnyfoco-design/elin-project
+```
+
 # HARDWARE NEEDED
 
 For the standard and unfiltered model, any modern gpu with 8GB vRAM is enough. 6GB vRAM GPU's will need offloading, which also makes it slower.
