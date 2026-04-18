@@ -1,4 +1,3 @@
-![Screenshot_2026-04-13-00-37-31-82_84c9ef400ab248a2e4a3b31139e21163](https://github.com/user-attachments/assets/19bb500c-4081-432b-bfa7-8e6dc9a0977f)
 
 # The elin project
 
