@@ -6,17 +6,30 @@ import json
 import sys
 import select
 import time
+import threading
+import readline
 from openai import OpenAI
 
 ELIN_MODE = os.environ.get("ELIN_MODE", "local")
 if ELIN_MODE == "cloud":
     client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.environ.get("GROQ_API_KEY"))
     MODEL_NAME = "llama-3.3-70b-versatile"
+    TOKEN_LIMIT = 90000  # leave buffer below groq's 100k daily limit
 else:
-    client = OpenAI(base_url="http://localhost:8081/v1", api_key="sk-no-key-required")
+    client = OpenAI(base_url="http://localhost:11434/v1", api_key="sk-no-key-required")
     MODEL_NAME = "local-model"
+    TOKEN_LIMIT = 8000
 
-SEARXNG_URL = "http://172.17.0.1:8080/search" 
+SEARXNG_URL = "http://172.17.0.1:8080/search"
+MAX_OUTPUT_LEN = 3000  # cap command output to avoid token blowout
+
+MEM_DIR = os.path.expanduser("~/elin-project/memory")
+MEM_FILE = os.path.join(MEM_DIR, "latest.json")
+
+token_count = 0  # rough running estimate
+
+def estimate_tokens(text):
+    return len(text) // 4
 
 def format_md(text):
     text = re.sub(r'\*\*(.*?)\*\*', r'\033[1m\1\033[0m', text)
@@ -37,12 +50,34 @@ def load_skills():
             except: pass
     return all_skills
 
+def save_memory(messages):
+    os.makedirs(MEM_DIR, exist_ok=True)
+    with open(MEM_FILE, "w") as f:
+        json.dump(messages, f)
+
+def autosave(messages_ref):
+    while True:
+        time.sleep(60)
+        save_memory(messages_ref[0])
+
+def truncate_context(messages, system_prompt):
+    total = estimate_tokens(system_prompt)
+    kept = []
+    for msg in reversed(messages[1:]):
+        total += estimate_tokens(msg["content"])
+        if total > TOKEN_LIMIT:
+            break
+        kept.insert(0, msg)
+    if len(kept) < len(messages) - 1:
+        print(f"\033[1;33m[context truncated, dropped {len(messages) - 1 - len(kept)} old messages]\033[0m")
+    return [messages[0]] + kept
+
 def run_linux_command(command):
     if "pacman" in command and "--noconfirm" not in command:
         command = command.replace("pacman", "pacman --noconfirm")
     if "yay" in command and "--noconfirm" not in command:
         command = command.replace("yay", "yay --noconfirm")
-    risky = ["rm", "dd", "mkfs", "mv", ">", "pacman -R"]
+    risky = ["rm", "dd", "mkfs", "mv", ">", "pacman -R", "wget", "curl", "python"]
     if any(r in command for r in risky):
         print(f"\n\033[1;33melin wants to run: [{command}]. allow? (y/N): \033[0m", end="")
         confirm = input()
@@ -50,7 +85,15 @@ def run_linux_command(command):
             return "User denied execution for security."
     print(f"\n\033[2mexecuting: {command}\033[0m")
     result = subprocess.run(command, shell=True, capture_output=True, text=True)
-    return f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    output = f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    if len(output) > MAX_OUTPUT_LEN:
+        output = output[:MAX_OUTPUT_LEN] + "\n[output truncated to avoid token limit]"
+    return output
+
+def open_url(url):
+    print(f"\n\033[2mopening: {url}\033[0m")
+    subprocess.Popen(["xdg-open", url])
+    return f"Opened {url} in default browser."
 
 def search_web(query):
     print(f"\n\033[2msearching for: {query}\033[0m")
@@ -68,22 +111,41 @@ def elin_visual_speak(text, shape="GLOBE"):
     except: pass
 
 SYSTEM_PROMPT = """You are Elin, a local AI assistant for a Linux system.
+The users name is Robin. They use EndeavourOS with a GTX 1050 Ti and nvidia-470xx-dkms drivers, systemd-boot, dracut, and yay as their AUR helper. Be aware of these when giving system advice.
 You have access to the shell and the web.
 To run a command, respond with: EXEC: <command>
 To search the web, respond with: SEARCH: <query>
-Do not use backtics or such on EXEC or SEARCH.
+To open a URL in the browser, respond with: OPEN: <url>
+You can use multiple EXEC lines in one response to run several commands.
+Do not use backtics or such on EXEC, SEARCH, or OPEN.
 If you use a tool, wait for the output. You can use up to 5 steps to solve a problem.
 Be concise, witty, and helpful. Dont use any other charcaters than any alphabetic letter, number, dots(.), commas(,), or emojis.."""
 
 SKILLS_CONTENT = load_skills()
+FULL_SYSTEM = SYSTEM_PROMPT + SKILLS_CONTENT
+
 os.system('clear' if os.name == 'posix' else 'cls')
 print(f"\033[1;36melin project ({ELIN_MODE} mode)\033[0m")
+print(f"\033[2mcommands: /sc save, /lc load, /clear reset context, /tokens show usage\033[0m")
 
-messages = [{"role": "system", "content": SYSTEM_PROMPT + SKILLS_CONTENT}]
+# autoload memory if it exists
+if os.path.exists(MEM_FILE):
+    with open(MEM_FILE, "r") as f:
+        messages = json.load(f)
+    print(f"\033[1;32m[Memory autoloaded]\033[0m")
+else:
+    messages = [{"role": "system", "content": FULL_SYSTEM}]
+
+# start autosave thread
+messages_ref = [messages]
+t = threading.Thread(target=autosave, args=(messages_ref,), daemon=True)
+t.start()
 
 while True:
     user_msg = None
-    print(f"\n\033[1;31mUser > \033[0m", end="", flush=True)
+    tokens_display = f"\033[2m[~{token_count} tokens]\033[0m " if token_count > 0 else ""
+    print(f"\n{tokens_display}\033[1;31mUser > \033[0m", end="", flush=True)
+
     while not user_msg:
         try:
             v_resp = requests.get("http://localhost:8000/get_input", timeout=0.05).json()
@@ -97,21 +159,39 @@ while True:
             user_msg = sys.stdin.readline().strip()
             break
         time.sleep(0.2)
-    
+
+    if not user_msg:
+        continue
+
     if user_msg.strip().lower() == "/sc":
-        mem_dir = os.path.expanduser("~/elin-project/memory")
-        os.makedirs(mem_dir, exist_ok=True)
-        with open(os.path.join(mem_dir, "latest.json"), "w") as f: json.dump(messages, f)
+        save_memory(messages)
         print("\033[1;32m[Saved]\033[0m")
         continue
+
     if user_msg.strip().lower() == "/lc":
-        mem_file = os.path.expanduser("~/elin-project/memory/latest.json")
-        if os.path.exists(mem_file):
-            with open(mem_file, "r") as f: messages = json.load(f)
+        if os.path.exists(MEM_FILE):
+            with open(MEM_FILE, "r") as f:
+                messages = json.load(f)
+            messages_ref[0] = messages
             print("\033[1;32m[Loaded]\033[0m")
         continue
 
+    if user_msg.strip().lower() == "/clear":
+        messages = [{"role": "system", "content": FULL_SYSTEM}]
+        messages_ref[0] = messages
+        token_count = 0
+        print("\033[1;32m[Context cleared]\033[0m")
+        continue
+
+    if user_msg.strip().lower() == "/tokens":
+        print(f"\033[1;32m[Estimated tokens used this session: ~{token_count}]\033[0m")
+        continue
+
     messages.append({"role": "user", "content": user_msg})
+    token_count += estimate_tokens(user_msg)
+
+    messages = truncate_context(messages, FULL_SYSTEM)
+    messages_ref[0] = messages
 
     for i in range(5):
         stream = client.chat.completions.create(
@@ -120,7 +200,7 @@ while True:
             temperature=0.3,
             stream=True
         )
-        
+
         print(f"\033[1;31mElin > \033[0m", end="", flush=True)
         elin_resp = ""
         for chunk in stream:
@@ -129,24 +209,48 @@ while True:
                 print(content, end="", flush=True)
                 elin_resp += content
         print()
-        
+
+        token_count += estimate_tokens(elin_resp)
+
         current_shape = "GLOBE"
         if "EXEC:" in elin_resp: current_shape = "EXEC"
         if "SEARCH:" in elin_resp: current_shape = "SEARCH"
+        if "OPEN:" in elin_resp: current_shape = "OPEN"
         if "UI:" in elin_resp:
             try: current_shape = elin_resp.split("UI:")[1].strip().split()[0]
             except: pass
         elin_visual_speak(elin_resp, current_shape)
-        
+
         messages.append({"role": "assistant", "content": elin_resp})
-        
-        if "EXEC:" in elin_resp:
-            cmd = elin_resp.split("EXEC:")[1].strip().split('\n')[0].strip()
-            output = run_linux_command(cmd)
-            messages.append({"role": "user", "content": f"Command Output:\n{output}"})
-        elif "SEARCH:" in elin_resp:
+        messages_ref[0] = messages
+
+        tool_used = False
+
+        exec_cmds = re.findall(r'EXEC:\s*(.+)', elin_resp)
+        if exec_cmds:
+            tool_used = True
+            all_outputs = []
+            for cmd in exec_cmds:
+                output = run_linux_command(cmd.strip())
+                all_outputs.append(f"$ {cmd.strip()}\n{output}")
+            combined = "Command Output:\n" + "\n\n".join(all_outputs)
+            messages.append({"role": "user", "content": combined})
+            token_count += estimate_tokens(combined)
+
+        if "SEARCH:" in elin_resp:
+            tool_used = True
             query = elin_resp.split("SEARCH:")[1].strip().split('\n')[0].strip()
             output = search_web(query)
             messages.append({"role": "user", "content": f"Search Results:\n{output}"})
-        else:
+            token_count += estimate_tokens(output)
+
+        if "OPEN:" in elin_resp:
+            tool_used = True
+            url = elin_resp.split("OPEN:")[1].strip().split('\n')[0].strip()
+            output = open_url(url)
+            messages.append({"role": "user", "content": output})
+
+        messages_ref[0] = messages
+
+        if not tool_used:
             break
