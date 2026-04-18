@@ -1,6 +1,6 @@
 <img width="416" height="310" alt="2158" src="https://github.com/user-attachments/assets/601c3de0-da52-44ba-8ea3-1c3c6f7b245c" />
 
-# The elin project
+# The elin ~~project~~ fork
 
 The elin project provides a local and free assistant for coding, talking and help with Linux. 
 
