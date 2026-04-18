@@ -18,7 +18,7 @@ Look below for further info.
 
 # THANK YOU!
 First of all, lets thank the ones who brought me to this:
-- Claude. Banned me for not being 18, appreciate the "support" 🥴
+- germanphoneguy on tiktok (literally the guy that made the original project)
 
 Seriously now, thanks to @alevio_life on tiktok! His project was a HUGE inspiration to elin.
 
