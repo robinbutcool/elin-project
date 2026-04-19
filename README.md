@@ -2,7 +2,7 @@
 
 # The elin ~~project~~ fork
 
-The elin project provides a local and free assistant for coding, talking and help with Linux. 
+The elin project provides a local and free assistant for coding, talking and help with Linux. It has memory saving. To turn off autoload its --no-memory.
 
 It has multiple options such as:
 
