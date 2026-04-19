@@ -1,7 +1,5 @@
 #!/bin/bash
-
 KEY_FILE="$HOME/elin-project/.groq_key"
-
 if [ ! -f "$KEY_FILE" ]; then
     echo "Please log into console.groq.com and copy your API key."
     read -p "API Key: " GROQ_KEY
@@ -10,12 +8,8 @@ if [ ! -f "$KEY_FILE" ]; then
 else
     GROQ_KEY=$(cat "$KEY_FILE")
 fi
-
 cd ~/elin-project/searxng-docker && docker compose up -d
 cd ~/elin-project
-
 echo "starting elin in cloud mode..."
-
-sudo GROQ_API_KEY="$GROQ_KEY" ELIN_MODE="cloud" python elin.py
-
+GROQ_API_KEY="$GROQ_KEY" ELIN_MODE="cloud" python elin.py "$@"
 cd ~/elin-project/searxng-docker && docker compose down
