@@ -11,22 +11,42 @@ import readline
 from openai import OpenAI
 
 ELIN_MODE = os.environ.get("ELIN_MODE", "local")
+NO_MEMORY = "--no-memory" in sys.argv  # start fresh even if memory exists
+MAX_MESSAGES = 100  # max messages to keep in memory file
+
 if ELIN_MODE == "cloud":
     client = OpenAI(base_url="https://api.groq.com/openai/v1", api_key=os.environ.get("GROQ_API_KEY"))
     MODEL_NAME = "llama-3.3-70b-versatile"
-    TOKEN_LIMIT = 90000  # leave buffer below groq's 100k daily limit
+    TOKEN_LIMIT = 90000
 else:
     client = OpenAI(base_url="http://localhost:11434/v1", api_key="sk-no-key-required")
-    MODEL_NAME = "local-model"
+    MODEL_NAME = "qwen2.5-coder:3b"
     TOKEN_LIMIT = 8000
 
 SEARXNG_URL = "http://172.17.0.1:8080/search"
-MAX_OUTPUT_LEN = 3000  # cap command output to avoid token blowout
+MAX_OUTPUT_LEN = 3000
 
 MEM_DIR = os.path.expanduser("~/elin-project/memory")
 MEM_FILE = os.path.join(MEM_DIR, "latest.json")
 
-token_count = 0  # rough running estimate
+token_count = 0
+
+HELP_TEXT = """\033[1;36m
+elin commands:
+  /help          show this message
+  /sc            save current conversation
+  /lc            load saved conversation
+  /clear         reset context and token counter
+  /tokens        show estimated token usage
+
+launch flags:
+  --no-memory    start fresh, ignore saved memory
+
+elin keywords (for the AI):
+  EXEC: <cmd>    run a shell command
+  SEARCH: <q>    search the web via SearXNG
+  OPEN: <url>    open a URL in the browser
+\033[0m"""
 
 def estimate_tokens(text):
     return len(text) // 4
@@ -52,8 +72,10 @@ def load_skills():
 
 def save_memory(messages):
     os.makedirs(MEM_DIR, exist_ok=True)
+    # cap stored messages: keep system message + last MAX_MESSAGES
+    capped = [messages[0]] + messages[1:][-MAX_MESSAGES:]
     with open(MEM_FILE, "w") as f:
-        json.dump(messages, f)
+        json.dump(capped, f)
 
 def autosave(messages_ref):
     while True:
@@ -126,17 +148,18 @@ FULL_SYSTEM = SYSTEM_PROMPT + SKILLS_CONTENT
 
 os.system('clear' if os.name == 'posix' else 'cls')
 print(f"\033[1;36melin project ({ELIN_MODE} mode)\033[0m")
-print(f"\033[2mcommands: /sc save, /lc load, /clear reset context, /tokens show usage\033[0m")
+print(f"\033[2mtype /help for commands\033[0m")
 
-# autoload memory if it exists
-if os.path.exists(MEM_FILE):
+if NO_MEMORY:
+    messages = [{"role": "system", "content": FULL_SYSTEM}]
+    print(f"\033[1;33m[--no-memory: starting fresh]\033[0m")
+elif os.path.exists(MEM_FILE):
     with open(MEM_FILE, "r") as f:
         messages = json.load(f)
     print(f"\033[1;32m[Memory autoloaded]\033[0m")
 else:
     messages = [{"role": "system", "content": FULL_SYSTEM}]
 
-# start autosave thread
 messages_ref = [messages]
 t = threading.Thread(target=autosave, args=(messages_ref,), daemon=True)
 t.start()
@@ -161,6 +184,10 @@ while True:
         time.sleep(0.2)
 
     if not user_msg:
+        continue
+
+    if user_msg.strip().lower() == "/help":
+        print(HELP_TEXT)
         continue
 
     if user_msg.strip().lower() == "/sc":
